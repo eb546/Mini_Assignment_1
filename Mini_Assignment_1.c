@@ -106,38 +106,28 @@ void Leap_Year()
     } while (1); //While the program isn't returning a zero, the program will stay inside the loop function.
 }
 
-void Sum_of_Natural_Numbers() 
-{
-    int num[5]; //Assign the variable for the num as an array of integers with a limit of 5.
-    int sum = 0; //Assign the variable for the sum as an integer. 
-
-    printf("\nEnter 5 positive numbers: "); //Prints out a message at the terminal for the user to input any positive 5 numbers.
-    scanf("%d", &num[5]); //Assign the input function to be recognize as an integer by the format specifier and know the variable "num" being declared.
-
-    for (int i = 1; i <= 5; i++) // Have the for 
-        {
-            printf("%d", i + 1);
-            scanf("%d", &num[5]);
-        }
-
-    for (int i = 1; i <= 5; i++) // Have the for 
-        {
-            sum += num[i];
-        }
-
-    printf("The sum of the entered natural numbers is: %d \n", sum);
-    printf(" ");
-    
-}
 
 void Sum_of_Natural_Numbers()
 {
-    
+    int num; //Assign the variable for the num as an integer.
+    int sum = 0; //Assign the variable for the sum as an integer. 
+
+    printf("Enter a positive number: "); //Prints out a message at the terminal for the user to input any positive integers.
+    scanf("%d", &num); //Assign the input function to be recognize as an integer by a format specifier and know the variable "num" being declared.
+
+    for(int i = 1; i <= num; ++i) //Use the for loop to intialize; condition; increment/decrement.
+    {
+        sum += i; //Have the variable "sum" up to the user's input number. 
+    }
+
+    printf("The sum of natural numbers is: %d \n", sum);// This prints out a message displaying the result of the natural numbers
+
 }
 
 void Vowel_Checker()
 {
     char a; //Set the char variable for the user to input an alphabet.
+    char s[] ="vowel!"; //Set an array of chars for printing out at the terminal. 
     int lowercase_vowel, uppercase_vowel; //Set both the lowercase and uppercasen vowels as a variable to store as integers.
 
     do
@@ -154,10 +144,10 @@ void Vowel_Checker()
 
         if (lowercase_vowel || uppercase_vowel) //If the char a match to the variable upper and lowercase vowels.
             {
-                printf("%c is a vowel\n", a); //Prints out a message to clarify that the letter is a vowel.
+                printf("%c is a %c%c%c%c%c%c \n", a, s[0], s[1], s[2], s[3], s[4], s[5]); //Prints out a message to clarify that the letter is a vowel along with the uses of array of chars for the word "vowel" by using a format specifier.
             }
 
-        else{ //If it is not, then it will ignore that letter.
+        else{ //If it is not, then it will ignore that letter and continue asking for a vowel.
         }
 
     } while(1); //While the program isn't returning a zero, the program will stay inside the loop function. 
