@@ -14,5 +14,8 @@ int main()
 {
     int x = 5, y = 10;
     swap(&x, &y); // x is now 10, y is now 5
+
+    printf("%d, %d", x, y);
+
     return 0;
 }
