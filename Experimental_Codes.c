@@ -59,8 +59,6 @@ int main()
     printf("Elements of the array using pointer arithmetic:\n");
     for (int i = 0; i < 5; i++) {
         printf("arr[%d] = %d\n", i, *(arrPtr + i));
-
-        printf("\n");
     }
 
     // Task j: Use pointer arithmetic to double the value of each element in the array.
@@ -72,10 +70,8 @@ int main()
     printf("Modified array after doubling the values:\n");
     for (int i = 0; i < 5; i++) {
         printf("arr[%d] = %d\n", i, *(arrPtr + i));
-
-        printf("\n");
     }
 
-
+    printf("\n");
     return 0;
 }
