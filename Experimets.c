@@ -9,188 +9,138 @@
 #include <string.h>
 #include <time.h>
 
-#define MAX_RESOURCES 5
-#define NUM_CLIENTS 10
-#define BUFFER_SIZE 256
-#define MAX_PRIORITY 10
+#define MAX_JOBS 5  // Max number of jobs
+#define MAX_PRIORITY 10  // Max priority level (1 = highest)
+#define JOB_DURATION 2  // Simulate job execution duration in seconds
 
-// Resource Manager shared data structure
+// Job structure for managing jobs
 typedef struct {
-    int *resourcePool;  // Resource pool (dynamically allocated)
-    int resourceCount;  // Number of resources available
-    sem_t *mutex;       // Semaphore for mutual exclusion
-    sem_t *resourceSem; // Semaphore to access resources
-    int *clientPipes[NUM_CLIENTS];  // Pipes for communication with clients
-} ResourceManager;
+    int jobId;
+    int priority;  // Lower value means higher priority
+} Job;
 
-// Structure for client request
+// Resource Manager for job scheduling
 typedef struct {
-    int clientId;
-    int priority; // Higher priority clients have lower numbers (1 is highest)
-} ClientRequest;
+    Job *jobQueue;         // Dynamically allocated queue for jobs
+    sem_t *mutex;          // Semaphore for mutual exclusion
+    sem_t *jobSlotSem;     // Semaphore to limit the number of jobs being processed
+    int jobCount;          // Number of active jobs
+} JobScheduler;
 
-// Compare function for sorting clients by priority
+// Function to compare jobs by priority (used for sorting)
 int comparePriority(const void *a, const void *b) {
-    return ((ClientRequest*)a)->priority - ((ClientRequest*)b)->priority;
+    return ((Job*)a)->priority - ((Job*)b)->priority;
 }
 
-// Function to initialize resources and semaphores
-void initializeManager(ResourceManager *manager) {
-    // Dynamically allocate resource pool
-    manager->resourcePool = (int *)malloc(sizeof(int) * MAX_RESOURCES);
-    for (int i = 0; i < MAX_RESOURCES; i++) {
-        manager->resourcePool[i] = 0;  // 0 means available
-    }
+// Function to initialize job scheduler and resources
+void initializeScheduler(JobScheduler *scheduler) {
+    scheduler->jobQueue = (Job *)malloc(MAX_JOBS * sizeof(Job));  // Dynamically allocate job queue
+    scheduler->jobCount = 0;
 
     // Initialize semaphores
-    manager->mutex = sem_open("/mutex", O_CREAT, 0666, 1);
-    manager->resourceSem = sem_open("/resourceSem", O_CREAT, 0666, MAX_RESOURCES);
+    scheduler->mutex = sem_open("/job_mutex", O_CREAT, 0666, 1);   // Mutex for job scheduling
+    scheduler->jobSlotSem = sem_open("/job_slot", O_CREAT, 0666, MAX_JOBS);  // Semaphore to limit job execution slots
 
-    if (manager->mutex == SEM_FAILED || manager->resourceSem == SEM_FAILED) {
+    if (scheduler->mutex == SEM_FAILED || scheduler->jobSlotSem == SEM_FAILED) {
         perror("Semaphore initialization failed");
         exit(1);
     }
-
-    manager->resourceCount = MAX_RESOURCES;
 }
 
-// Function to clean up resources and semaphores
-void cleanupManager(ResourceManager *manager) {
-    free(manager->resourcePool);
-    sem_close(manager->mutex);
-    sem_close(manager->resourceSem);
-    sem_unlink("/mutex");
-    sem_unlink("/resourceSem");
+// Function to clean up scheduler and semaphores
+void cleanupScheduler(JobScheduler *scheduler) {
+    free(scheduler->jobQueue);  // Free dynamically allocated memory for job queue
+    sem_close(scheduler->mutex);
+    sem_close(scheduler->jobSlotSem);
+    sem_unlink("/job_mutex");
+    sem_unlink("/job_slot");
 }
 
-// Function to simulate resource allocation for a client
-void allocateResource(ResourceManager *manager, int clientId, int priority, int pipeFd) {
-    sem_wait(manager->resourceSem);  // Wait for available resource
-    sem_wait(manager->mutex);        // Lock mutex for resource allocation
+// Function to simulate job execution
+void executeJob(int jobId, int jobDuration, int pipeFd) {
+    printf("Job %d is executing for %d seconds...\n", jobId, jobDuration);
+    sleep(jobDuration);  // Simulate work by sleeping for job duration
 
-    // Simulate resource allocation (e.g., assign a resource to the client)
-    for (int i = 0; i < MAX_RESOURCES; i++) {
-        if (manager->resourcePool[i] == 0) {  // Resource is available
-            manager->resourcePool[i] = clientId;  // Allocate resource to client
-            printf("Client %d (Priority %d) allocated resource %d\n", clientId, priority, i);
-            write(pipeFd, "Resource allocated", strlen("Resource allocated") + 1);  // Notify client
-            break;
-        }
+    // Notify the manager about job completion via the pipe
+    write(pipeFd, "Job Completed", strlen("Job Completed") + 1);
+    close(pipeFd);  // Close pipe after sending completion message
+}
+
+// Function to handle job scheduling based on priority
+void scheduleJob(JobScheduler *scheduler, int jobId, int priority, int pipeFd) {
+    sem_wait(scheduler->jobSlotSem);  // Wait for an available job slot
+
+    // Lock the job queue for modification
+    sem_wait(scheduler->mutex);
+    
+    // Add the new job to the queue
+    scheduler->jobQueue[scheduler->jobCount].jobId = jobId;
+    scheduler->jobQueue[scheduler->jobCount].priority = priority;
+    scheduler->jobCount++;
+    
+    // Sort the jobs based on priority (lowest priority number = highest priority)
+    qsort(scheduler->jobQueue, scheduler->jobCount, sizeof(Job), comparePriority);
+    
+    sem_post(scheduler->mutex);  // Release the mutex after modifying the queue
+
+    // Fork a child process to simulate job execution
+    pid_t pid = fork();
+    if (pid == 0) {
+        // Child process (job execution)
+        executeJob(jobId, JOB_DURATION, pipeFd);
+        exit(0);  // Exit child process
     }
-
-    sem_post(manager->mutex);  // Unlock mutex
 }
 
-// Function to simulate resource release for a client
-void releaseResource(ResourceManager *manager, int clientId, int pipeFd) {
-    sem_wait(manager->mutex);  // Lock mutex for resource release
-
-    // Simulate resource release (find and free the resource)
-    for (int i = 0; i < MAX_RESOURCES; i++) {
-        if (manager->resourcePool[i] == clientId) {  // Resource belongs to the client
-            manager->resourcePool[i] = 0;  // Free resource
-            printf("Client %d released resource %d\n", clientId, i);
-            write(pipeFd, "Resource released", strlen("Resource released") + 1);  // Notify client
-            break;
-        }
-    }
-
-    sem_post(manager->mutex);  // Unlock mutex
-    sem_post(manager->resourceSem);  // Release the resource back
-}
-
-// Client function that requests and releases resources
-void clientProcess(int clientId, int priority, int pipeFd) {
-    // Simulate resource request
-    sleep(rand() % 3);
-    printf("Client %d (Priority %d) requesting resource...\n", clientId, priority);
-    write(pipeFd, "Requesting resource", strlen("Requesting resource") + 1);
-}
-
+// Main function to simulate the Job Scheduling System
 int main() {
     srand(time(NULL));
 
-    // Shared memory and resource manager
-    int shmId = shmget(IPC_PRIVATE, sizeof(ResourceManager), IPC_CREAT | 0666);
+    // Create shared memory for the scheduler
+    int shmId = shmget(IPC_PRIVATE, sizeof(JobScheduler), IPC_CREAT | 0666);
     if (shmId == -1) {
         perror("Shared memory creation failed");
         exit(1);
     }
 
-    ResourceManager *manager = (ResourceManager *)shmat(shmId, NULL, 0);
-    if (manager == (void *)-1) {
+    JobScheduler *scheduler = (JobScheduler *)shmat(shmId, NULL, 0);
+    if (scheduler == (void *)-1) {
         perror("Shared memory attach failed");
         exit(1);
     }
 
-    initializeManager(manager);
+    // Initialize the job scheduler
+    initializeScheduler(scheduler);
 
-    // Create client processes
-    pid_t pids[NUM_CLIENTS];
-    ClientRequest requests[NUM_CLIENTS];
-
-    // Initialize client requests with random priorities
-    for (int i = 0; i < NUM_CLIENTS; i++) {
-        requests[i].clientId = i + 1;
-        requests[i].priority = rand() % MAX_PRIORITY + 1;  // Priority between 1 and MAX_PRIORITY
-    }
-
-    // Sort client requests by priority (higher priority clients first)
-    qsort(requests, NUM_CLIENTS, sizeof(ClientRequest), comparePriority);
-
-    for (int i = 0; i < NUM_CLIENTS; i++) {
+    // Simulate job submission by different clients
+    for (int i = 0; i < MAX_JOBS; i++) {
         int pipeFd[2];
         if (pipe(pipeFd) == -1) {
             perror("Pipe creation failed");
             exit(1);
         }
 
-        pids[i] = fork();
-        if (pids[i] == -1) {
-            perror("Fork failed");
-            exit(1);
-        }
+        // Random job priority (1 to MAX_PRIORITY)
+        int priority = rand() % MAX_PRIORITY + 1;
 
-        if (pids[i] == 0) {  // Client process
-            close(pipeFd[1]);  // Close write end
+        // Schedule job based on priority and create child processes
+        scheduleJob(scheduler, i + 1, priority, pipeFd[1]);
 
-            // Request a resource with priority
-            clientProcess(requests[i].clientId, requests[i].priority, pipeFd[0]);
+        // Read the job completion status from the pipe
+        char buffer[256];
+        read(pipeFd[0], buffer, sizeof(buffer));
+        printf("Manager received: %s for Job %d\n", buffer, i + 1);
 
-            // Read from pipe to simulate resource allocation
-            char buffer[BUFFER_SIZE];
-            read(pipeFd[0], buffer, sizeof(buffer));
-            printf("Client %d received: %s\n", requests[i].clientId, buffer);
-
-            // Release the resource after using it
-            releaseResource(manager, requests[i].clientId, pipeFd[0]);
-
-            close(pipeFd[0]);
-            exit(0);
-        } else {
-            close(pipeFd[0]);  // Parent process doesn't need to read
-        }
+        close(pipeFd[0]);  // Close the read end of the pipe
     }
 
-    // Resource manager - Process client requests in priority order
-    for (int i = 0; i < NUM_CLIENTS; i++) {
-        int pipeFd[2];
-        pipe(pipeFd);
-        if (fork() == 0) {
-            // Simulate resource allocation and release based on priority
-            int priority = requests[i].priority;
-            allocateResource(manager, requests[i].clientId, priority, pipeFd[1]);
-            wait(NULL);
-            exit(0);
-        }
+    // Wait for all jobs to finish (child processes)
+    for (int i = 0; i < MAX_JOBS; i++) {
+        wait(NULL);  // Wait for each child job process
     }
 
-    // Wait for all child processes to finish
-    for (int i = 0; i < NUM_CLIENTS; i++) {
-        wait(NULL);
-    }
-
-    cleanupManager(manager);
+    // Clean up resources
+    cleanupScheduler(scheduler);
     shmctl(shmId, IPC_RMID, NULL);  // Clean up shared memory
 
     return 0;
