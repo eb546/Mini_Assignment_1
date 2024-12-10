@@ -79,135 +79,182 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/shm.h>
-#include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include <semaphore.h>
 #include <fcntl.h>
 #include <string.h>
+#include <time.h>
 
-#define BUFFER_SIZE 10
-#define ITEM_COUNT 20
+#define MAX_RESOURCES 5
+#define NUM_CLIENTS 10
+#define BUFFER_SIZE 256
+#define PRIORITY_THRESHOLD 5
 
-// Shared structure
+// Resource Manager shared data structure
 typedef struct {
-    int *buffer;   // Dynamically allocated buffer
-    int in;         // Index for producer to add items
-    int out;        // Index for consumer to consume items
-    sem_t *mutex;   // Semaphore for mutual exclusion
-    sem_t *empty;   // Semaphore to count empty spaces in buffer
-    sem_t *full;    // Semaphore to count full items in buffer
-} SharedData;
+    int *resourcePool;  // Resource pool (dynamically allocated)
+    int resourceCount;  // Number of resources available
+    sem_t *mutex;       // Semaphore for mutual exclusion
+    sem_t *resourceSem; // Semaphore to access resources
+    int *clientPipes[NUM_CLIENTS];  // Pipes for communication with clients
+} ResourceManager;
 
-// Producer function
-void producer(SharedData *data) {
-    for (int i = 0; i < ITEM_COUNT; i++) {
-        // Wait for an empty slot
-        sem_wait(data->empty);
-        
-        // Lock the mutex for exclusive access to the buffer
-        sem_wait(data->mutex);
-        
-        // Produce an item (just a number here)
-        data->buffer[data->in] = i;
-        printf("Produced: %d\n", i);
-        data->in = (data->in + 1) % BUFFER_SIZE;
-        
-        // Unlock the mutex
-        sem_post(data->mutex);
-        
-        // Signal that there is a new full item
-        sem_post(data->full);
-        
-        // Simulate some production time
-        usleep(500000);  // Sleep for 0.5 seconds
-    }
-}
+// Structure for client request
+typedef struct {
+    int clientId;
+    int priority;
+} ClientRequest;
 
-// Consumer function
-void consumer(SharedData *data) {
-    for (int i = 0; i < ITEM_COUNT; i++) {
-        // Wait for a full item to consume
-        sem_wait(data->full);
-        
-        // Lock the mutex for exclusive access to the buffer
-        sem_wait(data->mutex);
-        
-        // Consume an item
-        int item = data->buffer[data->out];
-        printf("Consumed: %d\n", item);
-        data->out = (data->out + 1) % BUFFER_SIZE;
-        
-        // Unlock the mutex
-        sem_post(data->mutex);
-        
-        // Signal that there is an empty slot
-        sem_post(data->empty);
-        
-        // Simulate some consumption time
-        usleep(1000000);  // Sleep for 1 second
-    }
-}
-
-int main() {
-    // Shared memory creation
-    int shm_id = shmget(IPC_PRIVATE, sizeof(SharedData), IPC_CREAT | 0666);
-    if (shm_id == -1) {
-        perror("shmget failed");
-        exit(1);
-    }
-
-    // Attach the shared memory
-    SharedData *data = (SharedData *)shmat(shm_id, NULL, 0);
-    if (data == (void *)-1) {
-        perror("shmat failed");
-        exit(1);
-    }
-
-    // Dynamically allocate memory for the buffer
-    data->buffer = (int *)malloc(sizeof(int) * BUFFER_SIZE);
-    if (data->buffer == NULL) {
-        perror("malloc failed");
-        exit(1);
+// Function to initialize resources and semaphores
+void initializeManager(ResourceManager *manager) {
+    // Dynamically allocate resource pool
+    manager->resourcePool = (int *)malloc(sizeof(int) * MAX_RESOURCES);
+    for (int i = 0; i < MAX_RESOURCES; i++) {
+        manager->resourcePool[i] = 0;  // 0 means available
     }
 
     // Initialize semaphores
-    data->mutex = sem_open("/mutex", O_CREAT, 0666, 1);
-    data->empty = sem_open("/empty", O_CREAT, 0666, BUFFER_SIZE);
-    data->full = sem_open("/full", O_CREAT, 0666, 0);
-    if (data->mutex == SEM_FAILED || data->empty == SEM_FAILED || data->full == SEM_FAILED) {
-        perror("sem_open failed");
+    manager->mutex = sem_open("/mutex", O_CREAT, 0666, 1);
+    manager->resourceSem = sem_open("/resourceSem", O_CREAT, 0666, MAX_RESOURCES);
+
+    if (manager->mutex == SEM_FAILED || manager->resourceSem == SEM_FAILED) {
+        perror("Semaphore initialization failed");
         exit(1);
     }
 
-    // Initialize buffer indices
-    data->in = 0;
-    data->out = 0;
+    manager->resourceCount = MAX_RESOURCES;
+}
 
-    // Fork a producer process
-    pid_t pid = fork();
-    if (pid == -1) {
-        perror("fork failed");
-        exit(1);
-    }
-
-    if (pid == 0) {  // Child process (Producer)
-        producer(data);
-        exit(0);
-    } else {  // Parent process (Consumer)
-        consumer(data);
-        wait(NULL);  // Wait for the producer to finish
-    }
-
-    // Cleanup
-    free(data->buffer);
-    sem_close(data->mutex);
-    sem_close(data->empty);
-    sem_close(data->full);
-    shmctl(shm_id, IPC_RMID, NULL);  // Remove shared memory
+// Function to clean up resources and semaphores
+void cleanupManager(ResourceManager *manager) {
+    free(manager->resourcePool);
+    sem_close(manager->mutex);
+    sem_close(manager->resourceSem);
     sem_unlink("/mutex");
-    sem_unlink("/empty");
-    sem_unlink("/full");
+    sem_unlink("/resourceSem");
+}
+
+// Function to simulate resource allocation for a client
+void allocateResource(ResourceManager *manager, int clientId, int priority, int pipeFd) {
+    sem_wait(manager->resourceSem);  // Wait for available resource
+    sem_wait(manager->mutex);        // Lock mutex for resource allocation
+
+    // Simulate resource allocation (e.g., assign a resource to the client)
+    for (int i = 0; i < MAX_RESOURCES; i++) {
+        if (manager->resourcePool[i] == 0) {  // Resource is available
+            manager->resourcePool[i] = clientId;  // Allocate resource to client
+            printf("Client %d (Priority %d) allocated resource %d\n", clientId, priority, i);
+            write(pipeFd, "Resource allocated", strlen("Resource allocated") + 1);  // Notify client
+            break;
+        }
+    }
+
+    sem_post(manager->mutex);  // Unlock mutex
+}
+
+// Function to simulate resource release for a client
+void releaseResource(ResourceManager *manager, int clientId, int pipeFd) {
+    sem_wait(manager->mutex);  // Lock mutex for resource release
+
+    // Simulate resource release (find and free the resource)
+    for (int i = 0; i < MAX_RESOURCES; i++) {
+        if (manager->resourcePool[i] == clientId) {  // Resource belongs to the client
+            manager->resourcePool[i] = 0;  // Free resource
+            printf("Client %d released resource %d\n", clientId, i);
+            write(pipeFd, "Resource released", strlen("Resource released") + 1);  // Notify client
+            break;
+        }
+    }
+
+    sem_post(manager->mutex);  // Unlock mutex
+    sem_post(manager->resourceSem);  // Release the resource back
+}
+
+// Client function that requests and releases resources
+void clientProcess(int clientId, int priority, int pipeFd) {
+    // Simulate resource request
+    sleep(rand() % 3);
+    printf("Client %d (Priority %d) requesting resource...\n", clientId, priority);
+    write(pipeFd, "Requesting resource", strlen("Requesting resource") + 1);
+}
+
+int main() {
+    srand(time(NULL));
+
+    // Shared memory and resource manager
+    int shmId = shmget(IPC_PRIVATE, sizeof(ResourceManager), IPC_CREAT | 0666);
+    if (shmId == -1) {
+        perror("Shared memory creation failed");
+        exit(1);
+    }
+
+    ResourceManager *manager = (ResourceManager *)shmat(shmId, NULL, 0);
+    if (manager == (void *)-1) {
+        perror("Shared memory attach failed");
+        exit(1);
+    }
+
+    initializeManager(manager);
+
+    // Create client processes
+    pid_t pids[NUM_CLIENTS];
+    for (int i = 0; i < NUM_CLIENTS; i++) {
+        int pipeFd[2];
+        if (pipe(pipeFd) == -1) {
+            perror("Pipe creation failed");
+            exit(1);
+        }
+
+        pids[i] = fork();
+        if (pids[i] == -1) {
+            perror("Fork failed");
+            exit(1);
+        }
+
+        if (pids[i] == 0) {  // Client process
+            close(pipeFd[1]);  // Close write end
+
+            // Request a resource with priority
+            int priority = rand() % 10;  // Random priority
+            clientProcess(i + 1, priority, pipeFd[0]);
+
+            // Read from pipe to simulate resource allocation
+            char buffer[BUFFER_SIZE];
+            read(pipeFd[0], buffer, sizeof(buffer));
+            printf("Client %d received: %s\n", i + 1, buffer);
+
+            // Release the resource after using it
+            releaseResource(manager, i + 1, pipeFd[0]);
+
+            close(pipeFd[0]);
+            exit(0);
+        } else {
+            close(pipeFd[0]);  // Parent process doesn't need to read
+        }
+    }
+
+    // Resource manager - Process client requests based on priority
+    for (int i = 0; i < NUM_CLIENTS; i++) {
+        int pipeFd[2];
+        pipe(pipeFd);
+        if (fork() == 0) {
+            // Simulate resource allocation and release based on priority
+            int priority = rand() % 10;
+            allocateResource(manager, i + 1, priority, pipeFd[1]);
+            wait(NULL);
+            exit(0);
+        }
+    }
+
+    // Wait for all child processes to finish
+    for (int i = 0; i < NUM_CLIENTS; i++) {
+        wait(NULL);
+    }
+
+    cleanupManager(manager);
+    shmctl(shmId, IPC_RMID, NULL);  // Clean up shared memory
 
     return 0;
 }
