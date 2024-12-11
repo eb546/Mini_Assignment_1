@@ -9,38 +9,42 @@
 #include <string.h> // This includes functions for string manipulation.
 #include <time.h> // This includes fucntions for manipulating time and date.
 
-#define Max_Jobs 7 // Set the max number of jobs
-#define Max_Priority 10
-#define Job_Duration 3
+#define Max_Jobs 8 // Set the max number of jobs the program can progress.
+#define Max_Priority 10 // Set the max priority level in the scheduling or task queue system.
+#define Job_Duration 2 // Set the durationion seconds as a timner for a job takes to execute.
 
+// This typedef struct function is for managing jobs.
 typedef struct 
 {
-    int Job_ID;
-    int Priority;
+    int Job_ID; //Using the int function to identifying the job as a variable
+    int Priority; //Using the int function to prioritise each jobs from low number to high as a variable.
 } Job;
 
-
+// This typedef struct function is for scheduling jobs.
 typedef struct
 {
-    Job * Queue;
-    sem_t *Mutex;
-    sem_t *Slot;
-    int Job_Count;
+    Job *Queue; // Set the job queue by dynamically allocated array.
+    sem_t *Mutex; //Set a semaphore function for mutual exclusion when a queue is executing.
+    sem_t *Slot; //Set a semaphore function to limit the number of jobs in slots while being processed.
+    int Job_Count; // Set a counter of jobs in a queue. 
 } JobScheduler;
 
+// This void function allpws to use priority to compare jobs from lowest to highest.
 int Compare_Priority(const void *a, const void *b)
 {
-    return ((Job*)a)->Priority - ((Job*)b)->Priority;
+    return ((Job*)a)->Priority - ((Job*)b)->Priority; // Set to compare job priorities.
 }
 
+// This void function allows to intialize the job scheduler.
 void Initialize_Scheduler(JobScheduler * Scheduler)
 {
-    Scheduler->Queue = (Job*)malloc(Max_Jobs * sizeof(Job));
-    Scheduler->Job_Count = 0;
+    Scheduler->Queue = (Job*)malloc(Max_Jobs * sizeof(Job)); // Set the dynamic memory allocation for job queue by malloc().
+    Scheduler->Job_Count = 0; // Executing the job count to 0.
 
-    Scheduler->Mutex = sem_open("/Job_Mutex", O_CREAT, 1 );
-    Scheduler->Slot = sem_open("/Job_Slot", O_CREAT, Max_Jobs);
+    Scheduler->Mutex = sem_open("/Mutex", O_CREAT, 0666, 1); // Set to execute a semaphore with mutual exclusion function prevents race conditions during the job queue.
+    Scheduler->Slot = sem_open("/Slot", O_CREAT, 0666, Max_Jobs); // Set to execute a semaphore with slot function to control the jobs whilst being limit of maximum of jobs.
 
+    // Set to check if the semaphore function fails.
     if (Scheduler->Mutex == SEM_FAILED || Scheduler->Slot == SEM_FAILED)
     {
         perror("Status: Semaphore failed");
@@ -58,10 +62,10 @@ void Cleanup_Scheduler(JobScheduler * Scheduler)
 
 }
 
-void Execute_Job(int Job_ID, int Job_Duration, int Pipe_Fd)
+void Execute_Job(int Job_ID, int jobduration, int Pipe_Fd)
 {
-    printf("Job %d is now executing for %d seconds \n", Job_ID, Job_Duration);
-    sleep(Job_Duration);
+    printf("Job %d is now executing for %d seconds \n", Job_ID, jobduration);
+    sleep(jobduration);
 
     write(Pipe_Fd, "Job Completed!", strlen("Job Completed!")+1);
     close(Pipe_Fd);
@@ -96,7 +100,7 @@ int main()
 {
     srand(time(NULL));
 
-    int Shm_Id = Shm_Get(Ipc_Private, sizeof(JobScheduler), Ipc_Creat | 0666);
+    int Shm_Id = shmget(IPC_PRIVATE, sizeof(JobScheduler), IPC_CREAT | 0666);
 
     if (Shm_Id == -1)
     {
@@ -118,7 +122,7 @@ int main()
     {
         int Pipe_Fd[2];
 
-        int (Pipe(Pipe_Fd) = -1)
+        if (pipe(Pipe_Fd) == -1)
         {
             perror("Creating pipe failed");
 
@@ -144,13 +148,9 @@ int main()
     }
 
     Cleanup_Scheduler(Scheduler);
-
-    Schm_Ctl(Shm_Id, IPC_RMID, NULL);
+    
+    shmctl(Shm_Id, IPC_RMID, NULL);
 
     return 0;
 
 }
-
-
-
-

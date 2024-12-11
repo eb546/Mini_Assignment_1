@@ -9,7 +9,7 @@
 #include <string.h>
 #include <time.h>
 
-#define MAX_JOBS 5  // Max number of jobs
+#define MAX_JOBS 4  // Max number of jobs
 #define MAX_PRIORITY 10  // Max priority level (1 = highest)
 #define JOB_DURATION 2  // Simulate job execution duration in seconds
 

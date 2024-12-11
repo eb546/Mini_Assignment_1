@@ -36,7 +36,7 @@ int compare_tasks(const void *a, const void *b) {
 
 int main() {
     // Initialize a semaphore (binary semaphore for synchronization)
-    semaphore = sem_open("/task_semaphore", O_CREAT, 0644, 1);
+    semaphore = sem_open("/task_semaphore", O_CREAT, 0666, 1);
     if (semaphore == SEM_FAILED) {
         perror("sem_open");
         exit(1);
