@@ -1,15 +1,15 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <semaphore.h>
-#include <fcntl.h>
-#include <string.h>
-#include <time.h>
+#include <stdio.h> // This includes the standard libary for input/output.
+#include <stdlib.h> // This includes the standard library for memory allocation, process control, and conversions.
+#include <unistd.h> // This includes the various constants, types and functions relates to the process control pointers like fork(),exec(), getpid().
+#include <sys/wait.h> // This includes macros and declaration to handle child processes for process conntrol.
+#include <sys/ipc.h> // This includes definitions for inter-process communication or IPC such as shared memory, queues and semaphores.
+#include <sys/shm.h> // This includes the shared memory API functios in the Unix systems like shmget(),shmat(), and shmdt().
+#include <semaphore.h> // This includes the functions for managing semaphores.
+#include <fcntl.h> // This includes mode functions for file control operations such as O_CREAT.
+#include <string.h> // This includes functions for string manipulation.
+#include <time.h> // This includes fucntions for manipulating time and date.
 
-#define Max_Jobs 6
+#define Max_Jobs 7 // Set the max number of jobs
 #define Max_Priority 10
 #define Job_Duration 3
 
