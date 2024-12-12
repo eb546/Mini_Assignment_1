@@ -24,7 +24,7 @@ typedef struct
 // This typedef struct function is for scheduling jobs.
 typedef struct
 {
-    Job *Queue; // Set the job queue by dynamically allocated array.
+    Job *Queue; // Set the job queue by using a pointer to the dynamically allocated array.
 
     sem_t *Mutex; //Set a semaphore function with mutual exclusion when a queue is executing.
 
