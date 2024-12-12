@@ -82,7 +82,7 @@ void Execute_Job(int Job_ID, int jobduration, int Pipe_Fd)
 
     sleep(jobduration); // Set to sleep or pause the job's execution by the specified duration.
 
-    write(Pipe_Fd, "Job Completed!", strlen("Job Completed!")+1); // Set to write or prints out the completion message to the pipe.
+    write(Pipe_Fd, "Job completed", strlen("Job completed")+1); // Set to write or prints out the completion message to the pipe.
     
     close(Pipe_Fd); // Set to close the write function. 
 }
@@ -152,7 +152,7 @@ int main()
     
         read(Pipe_Fd[0], buffer, sizeof(buffer)); // Using the read function to read the completion message from the pipe.
 
-        printf("Manager received: %s for Job %d\n", buffer, i +1); // Prints out the message saying that this specific job is complete. 
+        printf("Manager received: %s for Job %d!\n", buffer, i +1); // Prints out the message saying that this specific job is complete. 
     
         close(Pipe_Fd[0]); // close the read end of the pipe. 
     }
