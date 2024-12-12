@@ -1,24 +1,24 @@
-#include <stdio.h> // This includes the standard libary for input/output.
+#include <stdio.h> // This includes the standard library for input/output.
 #include <stdlib.h> // This includes the standard library for memory allocation, process control, and conversions.
 #include <unistd.h> // This includes the various constants, types and functions relates to the process control pointers like fork(),exec(), getpid().
-#include <sys/wait.h> // This includes macros and declaration to handle child processes for process conntrol.
+#include <sys/wait.h> // This includes macros and declaration to handle child processes for process control.
 #include <sys/ipc.h> // This includes definitions for inter-process communication or IPC such as shared memory, queues and semaphores.
 #include <sys/shm.h> // This includes the shared memory API functios in the Unix systems like shmget(),shmat(), and shmdt().
 #include <semaphore.h> // This includes the functions for managing semaphores.
 #include <fcntl.h> // This includes mode functions for file control operations such as O_CREAT.
 #include <string.h> // This includes functions for string manipulation.
-#include <time.h> // This includes fucntions for manipulating time and date.
+#include <time.h> // This includes functions for manipulating time and date.
 
 #define Max_Jobs 8 // Set the max number of jobs the program can progress.
 #define Max_Priority 10 // Set the max priority level in the scheduling or task queue system.
-#define Job_Duration 2 // Set the durationion seconds as a timner for a job takes to execute.
+#define Job_Duration 2 // Set the duration in seconds as a timer for a job takes to execute.
 
 // This typedef struct function is for managing jobs.
 typedef struct 
 {
     int Job_ID; //Using the int function to identifying the job as a variable.
 
-    int Priority; //Using the int function to prioritise each jobs from low number to high as a variable.
+    int Priority; //Using the int function to priorities each jobs from low number to high as a variable.
 } Job;
 
 // This typedef struct function is for scheduling jobs.
@@ -34,13 +34,13 @@ typedef struct
 
 } JobScheduler;
 
-// This void function allpws to use priority to compare jobs from lowest to highest.
+// This void function allows to use priority to compare jobs from lowest to highest.
 int Compare_Priority(const void *a, const void *b)
 {
     return ((Job*)a)->Priority - ((Job*)b)->Priority; // Set to compare job priorities.
 }
 
-// This void function allows to intialize the job scheduler.
+// This void function allows to initialise the job scheduler.
 void Initialize_Scheduler(JobScheduler * Scheduler)
 {
     Scheduler->Queue = (Job*)malloc(Max_Jobs * sizeof(Job)); // Set the dynamic memory allocation for job queue by malloc().
