@@ -115,9 +115,9 @@ void Schedule_Job(JobScheduler * Scheduler, int Job_ID, int Priority, int Pipe_F
 // This main function to finalize the job scheduling program system. 
 int main()
 {
-    srand(time(NULL)); // Use the srand() to seed random number generator. 
+    srand(time(NULL)); // Uses to seed random number generator. 
 
-    int Shm_Id = shmget(IPC_PRIVATE, sizeof(JobScheduler), IPC_CREAT | 0666); // Set to create a shared memory for the job scheduleer structure. 
+    int Shm_Id = shmget(IPC_PRIVATE, sizeof(JobScheduler), IPC_CREAT | 0666); // Set to create a shared memory for the job scheduler structure. 
     if (Shm_Id == -1)
     {
         perror("Creating shared memory failed"); // Print an status message if the program fails along with a decription of the error. 
@@ -134,7 +134,7 @@ int main()
 
     Initialize_Scheduler(Scheduler); // Set to initialize the job scheduler program.
 
-    for (int i = 0; i < Max_Jobs; i++) // Using the for loop to process the maximum job interations until it has completed.
+    for (int i = 0; i < Max_Jobs; i++) // Using the for loop array to process the maximum job interations until it has completed.
     {
         int Pipe_Fd[2]; // Declares an array to store the file descriptors for the pipe. 
 
@@ -157,7 +157,7 @@ int main()
         close(Pipe_Fd[0]); // close the read end of the pipe. 
     }
 
-    for (int i = 0; i < Max_Jobs; i++) // Set an array for all the jobs to execute.
+    for (int i = 0; i < Max_Jobs; i++) // Set a for loop array for all the jobs to execute.
     {
         wait(NULL); // Wait for each job process to finish executing. 
     }
